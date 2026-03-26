@@ -610,8 +610,9 @@ function init() {
 // ── SCREENS ───────────────────────────────────
 const SCREEN_IDS = {diary:'screenDiary', recipes:'screenRecipes', db:'screenDB'};
 function goScreen(name) {
-  ['diary','recipes','db'].forEach(s => {
-    document.getElementById(SCREEN_IDS[s]).classList.toggle('on', s === name);
+  var ids = {diary:'screenDiary', recipes:'screenRecipes', db:'screenDB'};
+  ['diary','recipes','db'].forEach(function(s) {
+    document.getElementById(ids[s]).classList.toggle('on', s === name);
     document.getElementById('bnav-' + s).classList.toggle('on', s === name);
   });
   if (name === 'db') renderDB();
