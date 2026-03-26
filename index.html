@@ -395,6 +395,19 @@ header{background:var(--ink);padding:14px 18px;display:flex;align-items:center;j
       <div style="flex:1"><div class="form-lbl" style="margin-bottom:4px">Название</div><input class="form-inp" id="rfName" placeholder="Мой завтрак-бутерброд"></div>
       <div style="width:58px"><div class="form-lbl" style="margin-bottom:4px">Эмодзи</div><input class="form-inp" id="rfEmoji" value="🍽️" style="text-align:center;font-size:18px;padding:8px 4px"></div>
     </div>
+    <div style="display:flex;gap:8px;margin-bottom:11px">
+      <div style="flex:1">
+        <div class="form-lbl" style="margin-bottom:4px">Выход готового блюда (г)</div>
+        <input class="form-inp" id="rfYield" type="number" placeholder="напр. 600" min="1">
+      </div>
+      <div style="flex:1">
+        <div class="form-lbl" style="margin-bottom:4px">Размер порции (г)</div>
+        <input class="form-inp" id="rfServing" type="number" placeholder="напр. 150" min="1">
+      </div>
+    </div>
+    <div style="background:var(--warm);border-radius:8px;padding:8px 11px;font-size:11px;color:var(--mid);margin-bottom:11px">
+      💡 Укажи сколько весит всё готовое блюдо и типичная порция. Так приложение посчитает КБЖУ именно той части, которую ты съешь.
+    </div>
     <div class="form-lbl" style="margin-bottom:6px">Ингредиенты</div>
     <div id="rfIngList"></div>
     <div class="rf-add-row">
@@ -477,6 +490,24 @@ header{background:var(--ink);padding:14px 18px;display:flex;align-items:center;j
     <p id="mealSheetText"></p>
     <div class="mopts" id="mealSheetOpts"></div>
     <div class="sbtns"><button class="sbtn cancel" onclick="closeMealSheet()">Отмена</button></div>
+  </div>
+</div>
+
+<!-- SERVING SIZE SHEET -->
+<div class="overlay" id="servingSheet">
+  <div class="sheet">
+    <h3 id="servingSheetTitle">Сколько грамм?</h3>
+    <p id="servingSheetDesc" style="margin-bottom:14px"></p>
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+      <input id="servingAmountInp" type="number" placeholder="г" style="flex:1;border:1.5px solid var(--border);border-radius:8px;padding:11px;font-family:'DM Sans',sans-serif;font-size:16px;text-align:center;outline:none;background:var(--warm)">
+      <span style="font-size:13px;color:var(--mid)">грамм</span>
+    </div>
+    <div id="servingPresets" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px"></div>
+    <div id="servingKcalPreview" style="text-align:center;font-size:13px;color:var(--sage-d);margin-bottom:14px"></div>
+    <div class="sbtns">
+      <button class="sbtn cancel" onclick="closeServingSheet()">Отмена</button>
+      <button class="sbtn ok" onclick="confirmServing()">Добавить</button>
+    </div>
   </div>
 </div>
 
@@ -610,9 +641,8 @@ function init() {
 // ── SCREENS ───────────────────────────────────
 const SCREEN_IDS = {diary:'screenDiary', recipes:'screenRecipes', db:'screenDB'};
 function goScreen(name) {
-  var ids = {diary:'screenDiary', recipes:'screenRecipes', db:'screenDB'};
-  ['diary','recipes','db'].forEach(function(s) {
-    document.getElementById(ids[s]).classList.toggle('on', s === name);
+  ['diary','recipes','db'].forEach(s => {
+    document.getElementById(SCREEN_IDS[s]).classList.toggle('on', s === name);
     document.getElementById('bnav-' + s).classList.toggle('on', s === name);
   });
   if (name === 'db') renderDB();
@@ -732,15 +762,64 @@ function openRecipeMealSheet(key) {
   pendingRecipeKey = key; pendingFood = null;
   const r = recipes[key]; if (!r) return;
   const t = recipeTotal(r);
-  document.getElementById('mealSheetText').textContent = '«' + r.name + '» · ' + t.k + ' ккал';
+  if (r.yield && r.yield > 0) {
+    openServingSheet(key, t);
+  } else {
+    document.getElementById('mealSheetText').textContent = '\u00ab' + r.name + '\u00bb \u00b7 ' + Math.round(t.k) + ' \u043a\u043a\u0430\u043b (\u0432\u0441\u0451 \u0431\u043b\u044e\u0434\u043e)';
+    document.getElementById('mealSheetOpts').innerHTML = MEALS_CFG.map(m => '<div class="mopt" onclick="pickMeal(\'' + m.id + '\',this)">' + m.icon + ' ' + m.name + '</div>').join('');
+    document.getElementById('mealSheet').classList.add('on');
+  }
+}
+
+let pendingServingKey = null, pendingRecipeServing = 0;
+
+function openServingSheet(key, t) {
+  const r = recipes[key];
+  pendingServingKey = key;
+  const totalKcal = Math.round(t.k);
+  const yieldG = r.yield, servingG = r.serving || 0;
+  const kp100 = yieldG > 0 ? totalKcal / yieldG * 100 : 0;
+  document.getElementById('servingSheetTitle').textContent = (r.emoji||'\ud83c\udf7d\ufe0f') + ' ' + r.name;
+  document.getElementById('servingSheetDesc').textContent = '\u0412\u0441\u0451 \u0431\u043b\u044e\u0434\u043e: ' + yieldG + '\u0433 \u00b7 ' + totalKcal + ' \u043a\u043a\u0430\u043b. \u0421\u043a\u043e\u043b\u044c\u043a\u043e \u0442\u044b \u0441\u044a\u0435\u0448\u044c?';
+  const presets = [];
+  if (servingG > 0) presets.push({l:'\u041f\u043e\u0440\u0446\u0438\u044f ' + servingG + '\u0433', w:servingG});
+  if (servingG > 0 && servingG*2 <= yieldG) presets.push({l:'2 \u043f\u043e\u0440\u0446\u0438\u0438 ' + servingG*2 + '\u0433', w:servingG*2});
+  presets.push({l:'\u0412\u0441\u0451 ' + yieldG + '\u0433', w:yieldG});
+  document.getElementById('servingPresets').innerHTML = presets.map(p =>
+    '<button onclick="setServingAmt(' + p.w + ',' + kp100 + ')" style="padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--warm);font-family:DM Sans,sans-serif;font-size:12px;cursor:pointer">' + p.l + '<br><small style="color:var(--mid)">~' + Math.round(kp100*p.w/100) + ' \u043a\u043a</small></button>'
+  ).join('');
+  const inp = document.getElementById('servingAmountInp');
+  inp.value = servingG || '';
+  inp.oninput = () => { const w=parseInt(inp.value)||0; document.getElementById('servingKcalPreview').textContent = w>0 ? '\u2248 '+Math.round(kp100*w/100)+' \u043a\u043a\u0430\u043b' : ''; };
+  document.getElementById('servingKcalPreview').textContent = servingG>0 ? '\u2248 '+Math.round(kp100*servingG/100)+' \u043a\u043a\u0430\u043b' : '';
+  document.getElementById('servingSheet').classList.add('on');
+}
+function setServingAmt(w, kp100) {
+  document.getElementById('servingAmountInp').value = w;
+  document.getElementById('servingKcalPreview').textContent = '\u2248 ' + Math.round(kp100*w/100) + ' \u043a\u043a\u0430\u043b';
+}
+function closeServingSheet() { document.getElementById('servingSheet').classList.remove('on'); pendingServingKey = null; }
+function confirmServing() {
+  const w = parseInt(document.getElementById('servingAmountInp').value) || 0;
+  if (!w || !pendingServingKey) { closeServingSheet(); return; }
+  pendingRecipeServing = w; pendingRecipeKey = pendingServingKey;
+  const r = recipes[pendingServingKey], t = recipeTotal(r);
+  const kp100 = r.yield > 0 ? Math.round(t.k) / r.yield * 100 : 0;
+  closeServingSheet();
+  document.getElementById('mealSheetText').textContent = '\u00ab' + r.name + '\u00bb \u00b7 ' + w + '\u0433 \u00b7 ~' + Math.round(kp100*w/100) + ' \u043a\u043a\u0430\u043b';
   document.getElementById('mealSheetOpts').innerHTML = MEALS_CFG.map(m => '<div class="mopt" onclick="pickMeal(\'' + m.id + '\',this)">' + m.icon + ' ' + m.name + '</div>').join('');
   document.getElementById('mealSheet').classList.add('on');
 }
+
 function pickMeal(mid, el) {
   document.querySelectorAll('#mealSheetOpts .mopt').forEach(o => o.classList.remove('on'));
   el.classList.add('on');
   if (pendingFood) { addFood(mid, pendingFood.name, pendingFood.w); pendingFood = null; }
-  else if (pendingRecipeKey) { addRecipeToMeal(mid, pendingRecipeKey); pendingRecipeKey = null; }
+  else if (pendingRecipeKey) {
+    if (pendingRecipeServing > 0) { addRecipeWithServing(mid, pendingRecipeKey, pendingRecipeServing); pendingRecipeServing = 0; }
+    else { addRecipeToMeal(mid, pendingRecipeKey); }
+    pendingRecipeKey = null;
+  }
   setTimeout(closeMealSheet, 180);
 }
 function closeMealSheet() { document.getElementById('mealSheet').classList.remove('on'); }
@@ -934,6 +1013,8 @@ function openRecipeForm(prefill) {
   document.getElementById('recipeFormTitle').textContent = 'Новое блюдо';
   document.getElementById('rfName').value = prefill || '';
   document.getElementById('rfEmoji').value = '🍽️';
+  document.getElementById('rfYield').value = '';
+  document.getElementById('rfServing').value = '';
   document.getElementById('rfIngInp').value = ''; document.getElementById('rfIngW').value = 100;
   fillRfDl(); renderRfIngList();
   document.getElementById('recipeForm').classList.add('on');
@@ -945,6 +1026,8 @@ function editRecipe(key) {
   document.getElementById('recipeFormTitle').textContent = 'Редактировать блюдо';
   document.getElementById('rfName').value = r.name;
   document.getElementById('rfEmoji').value = r.emoji || '🍽️';
+  document.getElementById('rfYield').value = r.yield || '';
+  document.getElementById('rfServing').value = r.serving || '';
   fillRfDl(); renderRfIngList();
   document.getElementById('recipeForm').classList.add('on');
   document.getElementById('recipeForm').scrollIntoView({behavior:'smooth', block:'start'});
@@ -979,7 +1062,15 @@ function saveRecipe() {
   if (!rfIngredients.length) return;
   const key = editingRecipeKey || name;
   if (editingRecipeKey && editingRecipeKey !== name) delete recipes[editingRecipeKey];
-  recipes[key] = {name, emoji:document.getElementById('rfEmoji').value || '🍽️', ingredients:[...rfIngredients]};
+  const yieldG = parseInt(document.getElementById('rfYield').value) || 0;
+  const servingG = parseInt(document.getElementById('rfServing').value) || 0;
+  recipes[key] = {
+    name,
+    emoji: document.getElementById('rfEmoji').value || '🍽️',
+    ingredients: [...rfIngredients],
+    yield: yieldG,
+    serving: servingG,
+  };
   saveRecipes(); closeRecipeForm(); renderRecipeList(); renderQuickRecipes();
 }
 function deleteRecipe(key) {
@@ -988,7 +1079,26 @@ function deleteRecipe(key) {
 }
 function addRecipeToMeal(mid, key) {
   const r = recipes[key]; if (!r) return;
-  r.ingredients.forEach(ing => { const d = getFood(ing.name); if (!d) return; allDays[activeDay][mid].push({name:ing.name, w:ing.w, kcal:Math.round(d.k*ing.w/100), prot:Math.round(d.p*ing.w/100*10)/10, carb:Math.round(d.c*ing.w/100*10)/10, fat:Math.round(d.f*ing.w/100*10)/10}); });
+  r.ingredients.forEach(ing => {
+    const d = getFood(ing.name); if (!d) return;
+    allDays[activeDay][mid].push({name:ing.name, w:ing.w, kcal:Math.round(d.k*ing.w/100), prot:Math.round(d.p*ing.w/100*10)/10, carb:Math.round(d.c*ing.w/100*10)/10, fat:Math.round(d.f*ing.w/100*10)/10});
+  });
+  renderMeals();
+}
+
+function addRecipeWithServing(mid, key, servingW) {
+  const r = recipes[key]; if (!r) return;
+  if (!r.yield || r.yield <= 0) { addRecipeToMeal(mid, key); return; }
+  const ratio = servingW / r.yield;
+  const t = recipeTotal(r);
+  allDays[activeDay][mid].push({
+    name: r.name + ' (' + servingW + 'г)',
+    w: servingW,
+    kcal: Math.round(t.k * ratio),
+    prot: Math.round(t.p * ratio * 10) / 10,
+    carb: Math.round(t.c * ratio * 10) / 10,
+    fat:  Math.round(t.f * ratio * 10) / 10,
+  });
   renderMeals();
 }
 
@@ -1055,7 +1165,10 @@ function closeSettings() { document.getElementById('settingsOvl').classList.remo
 
 // ── PWA ───────────────────────────────────────
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; });
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+// Unregister any existing service workers to prevent caching issues
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+}
 
 // ── START ─────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
