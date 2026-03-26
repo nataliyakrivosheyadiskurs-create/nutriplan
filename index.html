@@ -10,6 +10,7 @@
 <title>NutriPlan</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root{--cream:#FAF7F2;--warm:#FFF9F0;--sage:#7A9E7E;--sage-l:#A8C5AC;--sage-d:#5A7A5E;--terra:#C4714A;--terra-l:#E8A882;--gold:#D4A843;--ink:#2C2C2C;--mid:#6B6B6B;--light:#B0B0B0;--border:#E8E0D5}
@@ -287,16 +288,31 @@ header{background:var(--ink);padding:14px 18px;display:flex;align-items:center;j
 <body>
 
 <!-- SETUP -->
-<div id="setupScreen">
-  <div class="sc">
+<div id="setupScreen" style="display:none">
+  <div class="sc" id="setupStep1">
     <div class="sc-logo">Nutri<span>Plan</span></div>
     <div class="sc-sub">Персональный планировщик питания</div>
     <label class="sc-lbl">API ключ Anthropic</label>
     <input class="sc-inp" id="setupKey" type="password" placeholder="sk-ant-api03-...">
     <div class="sc-hint">Получи ключ на <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a> → API Keys → Create Key.<br>Ключ хранится только на твоём устройстве.</div>
-    <button class="sc-btn" onclick="saveKey()">Начать →</button>
+    <button class="sc-btn" onclick="saveKey()">Продолжить →</button>
     <div class="sc-err" id="setupErr">Введи корректный ключ (начинается с sk-ant-)</div>
     <div class="sc-note">🔒 Ключ сохраняется в памяти устройства и отправляется только на серверы Anthropic</div>
+  </div>
+  <div class="sc" id="setupStep2" style="display:none">
+    <div class="sc-logo">Nutri<span>Plan</span></div>
+    <div class="sc-sub">синхронизация между устройствами</div>
+    <select class="sc-inp" id="authMode">
+      <option value="login">Войти в аккаунт</option>
+      <option value="register">Зарегистрироваться</option>
+    </select>
+    <label class="sc-lbl">Email</label>
+    <input class="sc-inp" id="authEmail" type="email" placeholder="твой@email.com">
+    <label class="sc-lbl">Пароль</label>
+    <input class="sc-inp" id="authPass" type="password" placeholder="минимум 6 символов">
+    <div class="sc-err" id="authErr" style="display:none"></div>
+    <button class="sc-btn" onclick="authSubmit()">Войти / Зарегистрироваться</button>
+    <div class="sc-note">📱 Используй один аккаунт на всех устройствах</div>
   </div>
 </div>
 
@@ -525,10 +541,104 @@ header{background:var(--ink);padding:14px 18px;display:flex;align-items:center;j
     <div class="srow"><div class="slbl">API ключ Anthropic</div><input class="sinp" id="settingsKeyInp" type="password" placeholder="sk-ant-api03-..."></div>
     <button class="ssave" onclick="saveSettingsKey()">Сохранить ключ</button>
     <button class="sreset" onclick="resetAll()">Сбросить все данные</button>
+    <button class="sreset" onclick="signOut()" style="margin-top:8px;background:#444">Выйти из аккаунта</button>
   </div>
 </div>
 
 <script>
+// ── SUPABASE ──────────────────────────────────
+const SUPABASE_URL = 'https://cnzhzycjcndktcmlprky.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNuemh6eWNqY25ka3RjbWxwcmt5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1Mzc1NjMsImV4cCI6MjA5MDExMzU2M30.Zdhen0EO1ce01lWCabBJRmVo2Nxq_So9jh5Ggq_Rx5M';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let currentUser = null;
+
+async function initAuth() {
+  const { data } = await sb.auth.getSession();
+  if (data.session) {
+    currentUser = data.session.user;
+    const k = localStorage.getItem('np_key');
+    if (k) { apiKey = k; }
+    document.getElementById('setupScreen').style.display = 'none';
+    await loadStateFromCloud();
+    init();
+  } else {
+    const k = localStorage.getItem('np_key');
+    if (k) {
+      apiKey = k;
+      document.getElementById('setupScreen').style.display = 'flex';
+      document.getElementById('setupStep1').style.display = 'none';
+      document.getElementById('setupStep2').style.display = 'block';
+    } else {
+      document.getElementById('setupScreen').style.display = 'flex';
+      document.getElementById('setupStep1').style.display = 'block';
+      document.getElementById('setupStep2').style.display = 'none';
+    }
+  }
+}
+
+async function authSubmit() {
+  const email = document.getElementById('authEmail').value.trim();
+  const pass  = document.getElementById('authPass').value.trim();
+  const mode  = document.getElementById('authMode').value;
+  const errEl = document.getElementById('authErr');
+  errEl.style.display = 'none';
+  let res;
+  if (mode === 'register') {
+    res = await sb.auth.signUp({ email, password: pass });
+  } else {
+    res = await sb.auth.signInWithPassword({ email, password: pass });
+  }
+  if (res.error) {
+    errEl.textContent = res.error.message;
+    errEl.style.display = 'block';
+    return;
+  }
+  currentUser = res.data.user;
+  document.getElementById('setupScreen').style.display = 'none';
+  await loadStateFromCloud();
+  init();
+}
+
+async function signOut() {
+  await sb.auth.signOut();
+  currentUser = null;
+  localStorage.clear();
+  location.reload();
+}
+
+async function loadStateFromCloud() {
+  if (!currentUser) return;
+  const { data, error } = await sb
+    .from('nutriplan_data')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .single();
+  if (error || !data) {
+    loadState();
+    await saveAllToCloud();
+    return;
+  }
+  allDays  = data.np_days    || blankDays();
+  customDB = data.np_cdb     || {};
+  allActs  = data.np_acts    || blankActs();
+  recipes  = data.np_recipes || {};
+  localStorage.setItem('np_days',    JSON.stringify(allDays));
+  localStorage.setItem('np_cdb',     JSON.stringify(customDB));
+  localStorage.setItem('np_acts',    JSON.stringify(allActs));
+  localStorage.setItem('np_recipes', JSON.stringify(recipes));
+}
+
+async function saveAllToCloud() {
+  if (!currentUser) return;
+  await sb.from('nutriplan_data').upsert({
+    user_id:    currentUser.id,
+    np_days:    allDays,
+    np_cdb:     customDB,
+    np_acts:    allActs,
+    np_recipes: recipes
+  }, { onConflict: 'user_id' });
+}
+
 // ── DATA ──────────────────────────────────────
 const PROFILE = `Ника, Алматы. Цель: минус 4кг за 6 недель. Норма: 1450ккал/день, 105г белка.
 ЕСТ: курица, куриная ветчина, индейка, красная рыба, морепродукты, гречка, рис, макароны, картошка, морковь, брокколи, цветная капуста, огурцы, помидоры, перец, тосты/хлеб, плавленый/выдержанный сыр (Пармезан,Фета,Маасдам,Чеддер), бананы, яблоки Гренни Смит, мандарины, финики, курага, Твикс (при гипогликемии). Любит соусы и специи, запекает/тушит.
@@ -580,10 +690,10 @@ function loadState() {
 }
 function blankDays() { return Array.from({length:7}, () => ({breakfast:[],lunch:[],snack:[],dinner:[]})); }
 function blankActs() { return Array.from({length:7}, () => []); }
-function saveDays() { localStorage.setItem('np_days', JSON.stringify(allDays)); }
-function saveCDB() { localStorage.setItem('np_cdb', JSON.stringify(customDB)); }
-function saveActs() { localStorage.setItem('np_acts', JSON.stringify(allActs)); }
-function saveRecipes() { localStorage.setItem('np_recipes', JSON.stringify(recipes)); }
+function saveDays() { localStorage.setItem('np_days', JSON.stringify(allDays)); saveAllToCloud(); }
+function saveCDB() { localStorage.setItem('np_cdb', JSON.stringify(customDB)); saveAllToCloud(); }
+function saveActs() { localStorage.setItem('np_acts', JSON.stringify(allActs)); saveAllToCloud(); }
+function saveRecipes() { localStorage.setItem('np_recipes', JSON.stringify(recipes)); saveAllToCloud(); }
 
 function allKeys() { return [...Object.keys(DB), ...Object.keys(customDB)]; }
 function getFood(n) { return DB[n] || customDB[n] || null; }
@@ -594,8 +704,8 @@ function saveKey() {
   if (!v.startsWith('sk-ant-')) { document.getElementById('setupErr').style.display = 'block'; return; }
   apiKey = v;
   localStorage.setItem('np_key', v);
-  document.getElementById('setupScreen').style.display = 'none';
-  init();
+  document.getElementById('setupStep1').style.display = 'none';
+  document.getElementById('setupStep2').style.display = 'block';
 }
 function loadKey() {
   const k = localStorage.getItem('np_key');
@@ -1172,9 +1282,7 @@ if ('serviceWorker' in navigator) {
 
 // ── START ─────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
-  // Ensure setupScreen is visible until key is found
-  document.getElementById('setupScreen').style.display = 'flex';
-  loadKey();
+  initAuth();
 });
 </script>
 </body>
