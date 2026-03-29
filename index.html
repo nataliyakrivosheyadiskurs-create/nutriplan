@@ -1345,7 +1345,7 @@ if ('serviceWorker' in navigator) {
 
 
 // ── BODY MEASUREMENTS ─────────────────────────
-let bodyLog = []; // [{date, weight, chest, waist, hips}]
+// bodyLog declared in state vars above
 
 function loadBodyLog() {
   try { const d = JSON.parse(localStorage.getItem('np_body')); bodyLog = (Array.isArray(d)) ? d : []; } catch { bodyLog = []; }
