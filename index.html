@@ -10,7 +10,6 @@
 <title>NutriPlan</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root{--cream:#FAF7F2;--warm:#FFF9F0;--sage:#7A9E7E;--sage-l:#A8C5AC;--sage-d:#5A7A5E;--terra:#C4714A;--terra-l:#E8A882;--gold:#D4A843;--ink:#2C2C2C;--mid:#6B6B6B;--light:#B0B0B0;--border:#E8E0D5}
@@ -283,36 +282,50 @@ header{background:var(--ink);padding:14px 18px;display:flex;align-items:center;j
 .sinp{border:1.5px solid var(--border);border-radius:9px;padding:10px 12px;font-family:'DM Sans',sans-serif;font-size:13px;outline:none}
 .ssave{width:100%;background:var(--sage);color:#fff;border:none;border-radius:10px;padding:12px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;margin-bottom:8px}
 .sreset{width:100%;background:none;border:1.5px solid var(--border);border-radius:10px;padding:10px;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;color:var(--terra)}
+
+/* STATS & ANALYTICS */
+.stat-period-btn{padding:4px 10px;border-radius:14px;border:1.5px solid var(--border);background:#fff;font-size:10px;cursor:pointer;font-family:'DM Sans',sans-serif}
+.stat-period-btn.on{background:var(--ink);color:var(--cream);border-color:var(--ink)}
+.analytics-period-btn{flex-shrink:0;padding:6px 14px;border-radius:18px;border:1.5px solid var(--border);background:white;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif}
+.analytics-period-btn.on{background:var(--ink);color:var(--cream);border-color:var(--ink)}
+.analytics-card{background:white;border-radius:12px;border:1.5px solid var(--border);padding:13px;text-align:center}
+.analytics-card.highlight{border-color:var(--sage-l);background:#F0F7F1}
+.ac-lbl{font-size:9px;color:var(--mid);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+.ac-val{font-size:20px;font-weight:600;color:var(--ink)}
+.ac-sub{font-size:10px;color:var(--mid);margin-top:2px}
+.measurement-entry{background:white;border-radius:12px;border:1.5px solid var(--border);padding:11px 14px;margin-bottom:7px;display:flex;align-items:center;gap:10px}
+.measurement-entry.latest{border-color:var(--sage-l)}
+.me-date{font-size:11px;color:var(--mid);flex-shrink:0;min-width:48px}
+.me-weight{font-size:18px;font-weight:600;color:var(--gold);min-width:52px}
+.me-delta{font-size:12px;font-weight:500;min-width:40px}
+.me-delta.down{color:#6FCF97}
+.me-delta.up{color:#EB5757}
+.me-delta.same{color:var(--mid)}
+.me-measures{font-size:10px;color:var(--mid);flex:1}
+.me-del{background:none;border:none;cursor:pointer;color:var(--light);font-size:14px;padding:2px 4px;margin-left:auto}
+.body-measure-card{background:var(--warm);border-radius:10px;padding:11px;text-align:center}
+.bm-ico{font-size:20px;margin-bottom:3px}
+.bm-lbl{font-size:9px;color:var(--mid);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.bm-val{font-size:17px;font-weight:600;color:var(--ink)}
+.bm-delta{font-size:10px;margin-top:1px}
+.macro-avg-card{background:var(--warm);border-radius:10px;padding:10px 6px}
+.ma-lbl{font-size:9px;color:var(--mid);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.ma-val{font-size:16px;font-weight:600}
 </style>
 </head>
 <body>
 
 <!-- SETUP -->
-<div id="setupScreen" style="display:none">
-  <div class="sc" id="setupStep1">
+<div id="setupScreen">
+  <div class="sc">
     <div class="sc-logo">Nutri<span>Plan</span></div>
     <div class="sc-sub">Персональный планировщик питания</div>
     <label class="sc-lbl">API ключ Anthropic</label>
     <input class="sc-inp" id="setupKey" type="password" placeholder="sk-ant-api03-...">
     <div class="sc-hint">Получи ключ на <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a> → API Keys → Create Key.<br>Ключ хранится только на твоём устройстве.</div>
-    <button class="sc-btn" onclick="saveKey()">Продолжить →</button>
+    <button class="sc-btn" onclick="saveKey()">Начать →</button>
     <div class="sc-err" id="setupErr">Введи корректный ключ (начинается с sk-ant-)</div>
     <div class="sc-note">🔒 Ключ сохраняется в памяти устройства и отправляется только на серверы Anthropic</div>
-  </div>
-  <div class="sc" id="setupStep2" style="display:none">
-    <div class="sc-logo">Nutri<span>Plan</span></div>
-    <div class="sc-sub">синхронизация между устройствами</div>
-    <select class="sc-inp" id="authMode">
-      <option value="login">Войти в аккаунт</option>
-      <option value="register">Зарегистрироваться</option>
-    </select>
-    <label class="sc-lbl">Email</label>
-    <input class="sc-inp" id="authEmail" type="email" placeholder="твой@email.com">
-    <label class="sc-lbl">Пароль</label>
-    <input class="sc-inp" id="authPass" type="password" placeholder="минимум 6 символов">
-    <div class="sc-err" id="authErr" style="display:none"></div>
-    <button class="sc-btn" onclick="authSubmit()">Войти / Зарегистрироваться</button>
-    <div class="sc-note">📱 Используй один аккаунт на всех устройствах</div>
   </div>
 </div>
 
@@ -482,7 +495,145 @@ header{background:var(--ink);padding:14px 18px;display:flex;align-items:center;j
   <button class="bnav-btn on" id="bnav-diary" onclick="goScreen('diary')"><span class="bi">📋</span>Дневник</button>
   <button class="bnav-btn" id="bnav-recipes" onclick="goScreen('recipes')"><span class="bi">🍳</span>Блюда</button>
   <button class="bnav-btn" id="bnav-db" onclick="goScreen('db')"><span class="bi">🥦</span>Продукты</button>
+  <button class="bnav-btn" id="bnav-stats" onclick="goScreen('stats')"><span class="bi">📏</span>Параметры</button>
+  <button class="bnav-btn" id="bnav-analytics" onclick="goScreen('analytics')"><span class="bi">📊</span>Аналитика</button>
 </nav>
+
+<!-- SCREEN: BODY STATS -->
+<div id="screenStats" class="screen">
+<div class="wrap">
+
+  <!-- WEIGHT HERO -->
+  <div class="summary" style="display:block;padding:20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div class="sum-title">Мой прогресс</div>
+        <div class="sum-date">Цель: 60 кг</div>
+      </div>
+      <button onclick="openAddMeasurement()" style="background:var(--sage);color:white;border:none;border-radius:10px;padding:9px 16px;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;font-weight:500">+ Записать</button>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:80px;background:rgba(255,255,255,0.1);border-radius:12px;padding:12px;text-align:center">
+        <div style="font-size:9px;color:var(--light);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Текущий вес</div>
+        <div id="statCurrentWeight" style="font-size:26px;font-weight:600;color:var(--gold)">—</div>
+        <div style="font-size:10px;color:var(--light)">кг</div>
+      </div>
+      <div style="flex:1;min-width:80px;background:rgba(255,255,255,0.1);border-radius:12px;padding:12px;text-align:center">
+        <div style="font-size:9px;color:var(--light);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">До цели</div>
+        <div id="statToGoal" style="font-size:26px;font-weight:600;color:var(--sage-l)">—</div>
+        <div style="font-size:10px;color:var(--light)">кг</div>
+      </div>
+      <div style="flex:1;min-width:80px;background:rgba(255,255,255,0.1);border-radius:12px;padding:12px;text-align:center">
+        <div style="font-size:9px;color:var(--light);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">За период</div>
+        <div id="statDelta" style="font-size:26px;font-weight:600;color:#6FCF97">—</div>
+        <div style="font-size:10px;color:var(--light)">кг</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WEIGHT CHART -->
+  <div style="background:white;border-radius:14px;border:1.5px solid var(--border);padding:16px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="font-family:'Playfair Display',serif;font-size:15px">График <em style="color:var(--sage-d)">веса</em></div>
+      <div style="display:flex;gap:5px">
+        <button class="stat-period-btn on" onclick="setStatPeriod('month',this)">Мес</button>
+        <button class="stat-period-btn" onclick="setStatPeriod('3month',this)">3 мес</button>
+        <button class="stat-period-btn" onclick="setStatPeriod('all',this)">Всё</button>
+      </div>
+    </div>
+    <canvas id="weightChart" style="width:100%;height:160px;display:block"></canvas>
+    <div id="weightChartEmpty" style="display:none;text-align:center;padding:30px;color:var(--mid);font-size:13px">
+      Пока нет данных. Запиши первый вес!
+    </div>
+  </div>
+
+  <!-- OTHER MEASUREMENTS -->
+  <div style="background:white;border-radius:14px;border:1.5px solid var(--border);padding:16px;margin-bottom:14px">
+    <div style="font-family:'Playfair Display',serif;font-size:15px;margin-bottom:12px">Объёмы <em style="color:var(--sage-d)">тела</em></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px" id="bodyMeasurements">
+      <!-- rendered by JS -->
+    </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div style="font-family:'Playfair Display',serif;font-size:18px;margin-bottom:12px">История <em style="color:var(--sage-d)">замеров</em></div>
+  <div id="measurementHistory"></div>
+
+</div>
+</div>
+
+<!-- SCREEN: ANALYTICS -->
+<div id="screenAnalytics" class="screen">
+<div class="wrap">
+
+  <!-- PERIOD TABS -->
+  <div style="display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;scrollbar-width:none">
+    <button class="analytics-period-btn on" onclick="setAnalyticsPeriod('week',this)">Неделя</button>
+    <button class="analytics-period-btn" onclick="setAnalyticsPeriod('2week',this)">2 нед</button>
+    <button class="analytics-period-btn" onclick="setAnalyticsPeriod('month',this)">Месяц</button>
+  </div>
+
+  <!-- SUMMARY CARDS -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px" id="analyticsCards"></div>
+
+  <!-- CALORIE CHART -->
+  <div style="background:white;border-radius:14px;border:1.5px solid var(--border);padding:16px;margin-bottom:14px">
+    <div style="font-family:'Playfair Display',serif;font-size:15px;margin-bottom:12px">Калории <em style="color:var(--sage-d)">по дням</em></div>
+    <canvas id="calorieChart" style="width:100%;height:160px;display:block"></canvas>
+  </div>
+
+  <!-- DEFICIT CHART -->
+  <div style="background:white;border-radius:14px;border:1.5px solid var(--border);padding:16px;margin-bottom:14px">
+    <div style="font-family:'Playfair Display',serif;font-size:15px;margin-bottom:4px">Дефицит <em style="color:var(--sage-d)">калорий</em></div>
+    <div style="font-size:11px;color:var(--mid);margin-bottom:12px">Зелёный = дефицит (сжигаем), красный = перебор</div>
+    <canvas id="deficitChart" style="width:100%;height:130px;display:block"></canvas>
+  </div>
+
+  <!-- MACRO BREAKDOWN -->
+  <div style="background:white;border-radius:14px;border:1.5px solid var(--border);padding:16px;margin-bottom:14px">
+    <div style="font-family:'Playfair Display',serif;font-size:15px;margin-bottom:12px">Среднее <em style="color:var(--sage-d)">КБЖУ</em> в день</div>
+    <div id="macroAvg" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center"></div>
+  </div>
+
+  <!-- ACTIVITY SUMMARY -->
+  <div style="background:white;border-radius:14px;border:1.5px solid var(--border);padding:16px;margin-bottom:14px">
+    <div style="font-family:'Playfair Display',serif;font-size:15px;margin-bottom:12px">Активность <em style="color:var(--sage-d)">за период</em></div>
+    <div id="activitySummary"></div>
+  </div>
+
+</div>
+</div>
+
+<!-- MEASUREMENT MODAL -->
+<div class="overlay" id="measurementSheet">
+  <div class="sheet">
+    <h3>📏 Записать замеры</h3>
+    <p id="measurementDate" style="margin-bottom:14px;font-weight:500;color:var(--ink)"></p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div>
+        <div class="form-lbl" style="margin-bottom:4px">⚖️ Вес (кг)</div>
+        <input class="form-inp" id="mWeight" type="number" placeholder="64.2" step="0.1" min="30" max="200" style="width:100%">
+      </div>
+      <div>
+        <div class="form-lbl" style="margin-bottom:4px">👗 Талия (см)</div>
+        <input class="form-inp" id="mWaist" type="number" placeholder="70" step="0.5" min="40" max="200" style="width:100%">
+      </div>
+      <div>
+        <div class="form-lbl" style="margin-bottom:4px">🍑 Бёдра (см)</div>
+        <input class="form-inp" id="mHips" type="number" placeholder="95" step="0.5" min="40" max="200" style="width:100%">
+      </div>
+      <div>
+        <div class="form-lbl" style="margin-bottom:4px">👙 Грудь (см)</div>
+        <input class="form-inp" id="mBust" type="number" placeholder="90" step="0.5" min="40" max="200" style="width:100%">
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--mid);margin-bottom:14px">💡 Взвешивайся утром, натощак, после туалета — это самый честный показатель</div>
+    <div class="sbtns">
+      <button class="sbtn cancel" onclick="closeMeasurementSheet()">Отмена</button>
+      <button class="sbtn ok" onclick="saveMeasurement()">Сохранить</button>
+    </div>
+  </div>
+</div>
 
 <!-- MODALS -->
 <div class="overlay" id="twixSheet">
@@ -541,104 +692,10 @@ header{background:var(--ink);padding:14px 18px;display:flex;align-items:center;j
     <div class="srow"><div class="slbl">API ключ Anthropic</div><input class="sinp" id="settingsKeyInp" type="password" placeholder="sk-ant-api03-..."></div>
     <button class="ssave" onclick="saveSettingsKey()">Сохранить ключ</button>
     <button class="sreset" onclick="resetAll()">Сбросить все данные</button>
-    <button class="sreset" onclick="signOut()" style="margin-top:8px;background:#444">Выйти из аккаунта</button>
   </div>
 </div>
 
 <script>
-// ── SUPABASE ──────────────────────────────────
-const SUPABASE_URL = 'https://cnzhzycjcndktcmlprky.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNuemh6eWNqY25ka3RjbWxwcmt5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1Mzc1NjMsImV4cCI6MjA5MDExMzU2M30.Zdhen0EO1ce01lWCabBJRmVo2Nxq_So9jh5Ggq_Rx5M';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-let currentUser = null;
-
-async function initAuth() {
-  const { data } = await sb.auth.getSession();
-  if (data.session) {
-    currentUser = data.session.user;
-    const k = localStorage.getItem('np_key');
-    if (k) { apiKey = k; }
-    document.getElementById('setupScreen').style.display = 'none';
-    await loadStateFromCloud();
-    init();
-  } else {
-    const k = localStorage.getItem('np_key');
-    if (k) {
-      apiKey = k;
-      document.getElementById('setupScreen').style.display = 'flex';
-      document.getElementById('setupStep1').style.display = 'none';
-      document.getElementById('setupStep2').style.display = 'block';
-    } else {
-      document.getElementById('setupScreen').style.display = 'flex';
-      document.getElementById('setupStep1').style.display = 'block';
-      document.getElementById('setupStep2').style.display = 'none';
-    }
-  }
-}
-
-async function authSubmit() {
-  const email = document.getElementById('authEmail').value.trim();
-  const pass  = document.getElementById('authPass').value.trim();
-  const mode  = document.getElementById('authMode').value;
-  const errEl = document.getElementById('authErr');
-  errEl.style.display = 'none';
-  let res;
-  if (mode === 'register') {
-    res = await sb.auth.signUp({ email, password: pass });
-  } else {
-    res = await sb.auth.signInWithPassword({ email, password: pass });
-  }
-  if (res.error) {
-    errEl.textContent = res.error.message;
-    errEl.style.display = 'block';
-    return;
-  }
-  currentUser = res.data.user;
-  document.getElementById('setupScreen').style.display = 'none';
-  await loadStateFromCloud();
-  init();
-}
-
-async function signOut() {
-  await sb.auth.signOut();
-  currentUser = null;
-  localStorage.clear();
-  location.reload();
-}
-
-async function loadStateFromCloud() {
-  if (!currentUser) return;
-  const { data, error } = await sb
-    .from('nutriplan_data')
-    .select('*')
-    .eq('user_id', currentUser.id)
-    .single();
-  if (error || !data) {
-    loadState();
-    await saveAllToCloud();
-    return;
-  }
-  allDays  = data.np_days    || blankDays();
-  customDB = data.np_cdb     || {};
-  allActs  = data.np_acts    || blankActs();
-  recipes  = data.np_recipes || {};
-  localStorage.setItem('np_days',    JSON.stringify(allDays));
-  localStorage.setItem('np_cdb',     JSON.stringify(customDB));
-  localStorage.setItem('np_acts',    JSON.stringify(allActs));
-  localStorage.setItem('np_recipes', JSON.stringify(recipes));
-}
-
-async function saveAllToCloud() {
-  if (!currentUser) return;
-  await sb.from('nutriplan_data').upsert({
-    user_id:    currentUser.id,
-    np_days:    allDays,
-    np_cdb:     customDB,
-    np_acts:    allActs,
-    np_recipes: recipes
-  }, { onConflict: 'user_id' });
-}
-
 // ── DATA ──────────────────────────────────────
 const PROFILE = `Ника, Алматы. Цель: минус 4кг за 6 недель. Норма: 1450ккал/день, 105г белка.
 ЕСТ: курица, куриная ветчина, индейка, красная рыба, морепродукты, гречка, рис, макароны, картошка, морковь, брокколи, цветная капуста, огурцы, помидоры, перец, тосты/хлеб, плавленый/выдержанный сыр (Пармезан,Фета,Маасдам,Чеддер), бананы, яблоки Гренни Смит, мандарины, финики, курага, Твикс (при гипогликемии). Любит соусы и специи, запекает/тушит.
@@ -687,13 +744,15 @@ function loadState() {
   try { const d = JSON.parse(localStorage.getItem('np_cdb')); customDB = (d && typeof d === 'object') ? d : {}; } catch { customDB = {}; }
   try { const d = JSON.parse(localStorage.getItem('np_acts')); allActs = (Array.isArray(d) && d.length === 7) ? d : blankActs(); } catch { allActs = blankActs(); }
   try { const d = JSON.parse(localStorage.getItem('np_recipes')); recipes = (d && typeof d === 'object') ? d : {}; } catch { recipes = {}; }
+  try { const d = JSON.parse(localStorage.getItem('np_measurements')); measurements = Array.isArray(d) ? d : []; } catch { measurements = []; }
+  try { const d = JSON.parse(localStorage.getItem('np_history')); foodHistory = (d && typeof d === 'object') ? d : {}; } catch { foodHistory = {}; }
 }
 function blankDays() { return Array.from({length:7}, () => ({breakfast:[],lunch:[],snack:[],dinner:[]})); }
 function blankActs() { return Array.from({length:7}, () => []); }
-function saveDays() { localStorage.setItem('np_days', JSON.stringify(allDays)); saveAllToCloud(); }
-function saveCDB() { localStorage.setItem('np_cdb', JSON.stringify(customDB)); saveAllToCloud(); }
-function saveActs() { localStorage.setItem('np_acts', JSON.stringify(allActs)); saveAllToCloud(); }
-function saveRecipes() { localStorage.setItem('np_recipes', JSON.stringify(recipes)); saveAllToCloud(); }
+function saveDays() { localStorage.setItem('np_days', JSON.stringify(allDays)); }
+function saveCDB() { localStorage.setItem('np_cdb', JSON.stringify(customDB)); }
+function saveActs() { localStorage.setItem('np_acts', JSON.stringify(allActs)); }
+function saveRecipes() { localStorage.setItem('np_recipes', JSON.stringify(recipes)); }
 
 function allKeys() { return [...Object.keys(DB), ...Object.keys(customDB)]; }
 function getFood(n) { return DB[n] || customDB[n] || null; }
@@ -704,8 +763,8 @@ function saveKey() {
   if (!v.startsWith('sk-ant-')) { document.getElementById('setupErr').style.display = 'block'; return; }
   apiKey = v;
   localStorage.setItem('np_key', v);
-  document.getElementById('setupStep1').style.display = 'none';
-  document.getElementById('setupStep2').style.display = 'block';
+  document.getElementById('setupScreen').style.display = 'none';
+  init();
 }
 function loadKey() {
   const k = localStorage.getItem('np_key');
@@ -749,15 +808,17 @@ function init() {
 }
 
 // ── SCREENS ───────────────────────────────────
-const SCREEN_IDS = {diary:'screenDiary', recipes:'screenRecipes', db:'screenDB'};
+const SCREEN_IDS = {diary:'screenDiary', recipes:'screenRecipes', db:'screenDB', stats:'screenStats', analytics:'screenAnalytics'};
 function goScreen(name) {
-  ['diary','recipes','db'].forEach(s => {
+  ['diary','recipes','db','stats','analytics'].forEach(s => {
     document.getElementById(SCREEN_IDS[s]).classList.toggle('on', s === name);
     document.getElementById('bnav-' + s).classList.toggle('on', s === name);
   });
   if (name === 'db') renderDB();
   if (name === 'recipes') { renderRecipeList(); fillRfDl(); }
   if (name === 'diary') renderQuickRecipes();
+  if (name === 'stats') renderStats();
+  if (name === 'analytics') renderAnalytics();
 }
 
 // ── TABS ──────────────────────────────────────
@@ -808,7 +869,7 @@ function updateSummary() {
   const pct = Math.min(1, t.k / 1450);
   document.getElementById('ringCircle').style.strokeDashoffset = 214 - (214 * pct);
   document.getElementById('ringPct').textContent = Math.round(pct * 100) + '%';
-  renderTabs(); saveDays();
+  renderTabs(); saveDays(); saveTodayToHistory();
   updateDeficit();
 }
 
@@ -1280,9 +1341,300 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
 }
 
+// ── BODY STATS & ANALYTICS ────────────────────
+let measurements = [], foodHistory = {};
+let statPeriod = 'month', analyticsPeriod = 'week';
+
+function saveMeasurements() { localStorage.setItem('np_measurements', JSON.stringify(measurements)); }
+function saveFoodHistory() { localStorage.setItem('np_history', JSON.stringify(foodHistory)); }
+
+function todayKey() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function dateKey(daysAgo) {
+  const d = new Date(); d.setDate(d.getDate() - daysAgo);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function formatDateRu(iso) {
+  const [y,m,day] = iso.split('-');
+  const mon = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+  return day + ' ' + mon[parseInt(m)-1];
+}
+
+// Save today to history on every summary update
+function saveTodayToHistory() {
+  const key = todayKey();
+  const foods = Object.values(allDays[activeDay]).flat();
+  const t = foods.reduce((s,f)=>({k:s.k+f.kcal,p:s.p+(f.prot||0),c:s.c+(f.carb||0),f:s.f+(f.fat||0)}),{k:0,p:0,c:0,f:0});
+  const burned = allActs[activeDay].reduce((s,a)=>s+a.kcal,0);
+  if (t.k > 0 || burned > 0) {
+    foodHistory[key] = {kcal:Math.round(t.k),prot:Math.round(t.p),carb:Math.round(t.c),fat:Math.round(t.f),burned};
+    saveFoodHistory();
+  }
+}
+
+// ── MEASUREMENTS UI ───────────────────────────
+function openAddMeasurement() {
+  const today = new Date().toLocaleDateString('ru-RU',{day:'numeric',month:'long',weekday:'short'});
+  document.getElementById('measurementDate').textContent = today;
+  const last = measurements[0];
+  document.getElementById('mWeight').value = last?.weight || '';
+  document.getElementById('mWaist').value = last?.waist || '';
+  document.getElementById('mHips').value = last?.hips || '';
+  document.getElementById('mBust').value = last?.bust || '';
+  document.getElementById('measurementSheet').classList.add('on');
+}
+function closeMeasurementSheet() { document.getElementById('measurementSheet').classList.remove('on'); }
+
+function saveMeasurement() {
+  const w = parseFloat(document.getElementById('mWeight').value);
+  if (!w) { document.getElementById('mWeight').style.borderColor='var(--terra)'; return; }
+  document.getElementById('mWeight').style.borderColor='';
+  const entry = {date:todayKey(), weight:w};
+  const waist = parseFloat(document.getElementById('mWaist').value); if(waist) entry.waist=waist;
+  const hips  = parseFloat(document.getElementById('mHips').value);  if(hips)  entry.hips=hips;
+  const bust  = parseFloat(document.getElementById('mBust').value);  if(bust)  entry.bust=bust;
+  const idx = measurements.findIndex(m=>m.date===entry.date);
+  if (idx>=0) measurements[idx]=entry; else measurements.unshift(entry);
+  measurements.sort((a,b)=>b.date.localeCompare(a.date));
+  saveMeasurements();
+  closeMeasurementSheet();
+  renderStats();
+}
+function deleteMeasurement(date) {
+  if (!confirm('Удалить замер?')) return;
+  measurements = measurements.filter(m=>m.date!==date);
+  saveMeasurements(); renderStats();
+}
+function setStatPeriod(p,el) {
+  statPeriod=p;
+  document.querySelectorAll('.stat-period-btn').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on'); renderStats();
+}
+
+function renderStats() {
+  const wm = measurements.filter(m=>m.weight);
+  const latest = wm[0];
+  const goal = 60;
+
+  document.getElementById('statCurrentWeight').textContent = latest ? latest.weight.toFixed(1) : '—';
+  if (latest) {
+    const toGoal = (latest.weight - goal).toFixed(1);
+    document.getElementById('statToGoal').textContent = parseFloat(toGoal) > 0 ? toGoal : '✓';
+    const days = statPeriod==='month'?30:statPeriod==='3month'?90:999;
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-days);
+    const cut = cutoff.toISOString().slice(0,10);
+    const period = wm.filter(m=>m.date>=cut);
+    const oldest = period[period.length-1];
+    if (oldest && oldest.date!==latest.date) {
+      const d=(latest.weight-oldest.weight).toFixed(1);
+      const el=document.getElementById('statDelta');
+      el.textContent=(parseFloat(d)>0?'+':'')+d;
+      el.style.color=parseFloat(d)<0?'#6FCF97':parseFloat(d)>0?'#EB5757':'var(--sage-l)';
+    } else { document.getElementById('statDelta').textContent='—'; }
+  } else {
+    document.getElementById('statToGoal').textContent='—';
+    document.getElementById('statDelta').textContent='—';
+  }
+
+  renderWeightChart();
+
+  const lastFull = measurements.find(m=>m.waist||m.hips||m.bust);
+  const prev = measurements.find(m=>(m.waist||m.hips||m.bust)&&m.date!==lastFull?.date);
+  document.getElementById('bodyMeasurements').innerHTML = [
+    {key:'waist',label:'Талия',ico:'👗',unit:'см'},
+    {key:'hips',label:'Бёдра',ico:'🍑',unit:'см'},
+    {key:'bust',label:'Грудь',ico:'👙',unit:'см'},
+  ].map(f=>{
+    const val=lastFull?.[f.key], pval=prev?.[f.key];
+    let dh='';
+    if(val&&pval){const d=(val-pval).toFixed(1);dh='<div class="bm-delta" style="color:'+(parseFloat(d)<0?'#6FCF97':parseFloat(d)>0?'#EB5757':'var(--mid)')+'\">'+(parseFloat(d)>0?'+':'')+d+' см</div>';}
+    return '<div class="body-measure-card"><div class="bm-ico">'+f.ico+'</div><div class="bm-lbl">'+f.label+'</div><div class="bm-val">'+(val?val+' '+f.unit:'—')+'</div>'+dh+'</div>';
+  }).join('');
+
+  const histEl = document.getElementById('measurementHistory');
+  if (!measurements.length) { histEl.innerHTML='<div class="db-empty"><div class="db-empty-ico">📏</div>Пока нет замеров. Нажми «Записать»!</div>'; return; }
+  histEl.innerHTML = measurements.map((m,i)=>{
+    const p=measurements[i+1]; let dh='';
+    if(m.weight&&p?.weight){const d=(m.weight-p.weight).toFixed(1);dh='<div class="me-delta '+(parseFloat(d)<0?'down':parseFloat(d)>0?'up':'same')+'">'+(parseFloat(d)>0?'+':'')+d+'</div>';}
+    const ex=['waist','hips','bust'].filter(k=>m[k]).map(k=>({waist:'Т',hips:'Б',bust:'Г'}[k]+':'+m[k])).join(' ');
+    return '<div class="measurement-entry'+(i===0?' latest':'')+'"><div class="me-date">'+formatDateRu(m.date)+'</div><div class="me-weight">'+(m.weight?m.weight.toFixed(1)+' кг':'—')+'</div>'+dh+'<div class="me-measures">'+ex+'</div><button class="me-del" onclick="deleteMeasurement(\''+m.date+'\')">×</button></div>';
+  }).join('');
+}
+
+function renderWeightChart() {
+  const canvas = document.getElementById('weightChart');
+  const empty = document.getElementById('weightChartEmpty');
+  const days = statPeriod==='month'?30:statPeriod==='3month'?90:365;
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-days);
+  const cut = cutoff.toISOString().slice(0,10);
+  const data = measurements.filter(m=>m.weight&&m.date>=cut).reverse();
+  if (data.length<2) { canvas.style.display='none'; empty.style.display='block'; return; }
+  canvas.style.display='block'; empty.style.display='none';
+
+  const dpr=window.devicePixelRatio||1, W=canvas.offsetWidth||300, H=160;
+  canvas.width=W*dpr; canvas.height=H*dpr; canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+  const vals=data.map(d=>d.weight);
+  const minV=Math.min(...vals)-0.5, maxV=Math.max(...vals)+0.5;
+  const p={t:12,r:10,b:24,l:36}, cw=W-p.l-p.r, ch=H-p.t-p.b;
+  const xp=i=>p.l+(i/(data.length-1||1))*cw;
+  const yp=v=>p.t+ch-((v-minV)/(maxV-minV))*ch;
+
+  // goal line
+  if (60>=minV&&60<=maxV) {
+    ctx.strokeStyle='#A8C5AC'; ctx.lineWidth=1; ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(p.l,yp(60)); ctx.lineTo(p.l+cw,yp(60)); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle='#7A9E7E'; ctx.font='9px sans-serif'; ctx.textAlign='left';
+    ctx.fillText('цель 60',p.l+4,yp(60)-3);
+  }
+  // gradient fill
+  const grad=ctx.createLinearGradient(0,p.t,0,H-p.b);
+  grad.addColorStop(0,'rgba(212,168,67,.25)'); grad.addColorStop(1,'rgba(212,168,67,.02)');
+  ctx.beginPath(); ctx.moveTo(xp(0),yp(vals[0]));
+  data.forEach((d,i)=>{ if(i>0) ctx.lineTo(xp(i),yp(d.weight)); });
+  ctx.lineTo(xp(data.length-1),H-p.b); ctx.lineTo(xp(0),H-p.b); ctx.closePath();
+  ctx.fillStyle=grad; ctx.fill();
+  // line
+  ctx.beginPath(); ctx.moveTo(xp(0),yp(vals[0]));
+  data.forEach((d,i)=>{ if(i>0) ctx.lineTo(xp(i),yp(d.weight)); });
+  ctx.strokeStyle='#D4A843'; ctx.lineWidth=2; ctx.setLineDash([]); ctx.stroke();
+  // dots
+  data.forEach((d,i)=>{
+    ctx.beginPath(); ctx.arc(xp(i),yp(d.weight),3,0,Math.PI*2); ctx.fillStyle='#D4A843'; ctx.fill();
+    if(i===0||i===data.length-1||data.length<=8){
+      ctx.fillStyle='#2C2C2C'; ctx.font='9px sans-serif'; ctx.textAlign='center';
+      ctx.fillText(d.weight.toFixed(1),xp(i),yp(d.weight)-6);
+    }
+  });
+  // x labels
+  ctx.fillStyle='#B0B0B0'; ctx.font='9px sans-serif'; ctx.textAlign='center';
+  const step=Math.max(1,Math.floor(data.length/5));
+  data.forEach((d,i)=>{ if(i%step===0||i===data.length-1) ctx.fillText(formatDateRu(d.date),xp(i),H-5); });
+}
+
+// ── ANALYTICS ────────────────────────────────
+function setAnalyticsPeriod(p,el) {
+  analyticsPeriod=p;
+  document.querySelectorAll('.analytics-period-btn').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on'); renderAnalytics();
+}
+
+function getAnalyticsData() {
+  const days = analyticsPeriod==='week'?7:analyticsPeriod==='2week'?14:30;
+  const result=[];
+  const todayDow=(()=>{let d=new Date().getDay();return d===0?6:d-1;})();
+  for (let i=days-1; i>=0; i--) {
+    const key=dateKey(i);
+    if (foodHistory[key]) { result.push({date:key,...foodHistory[key]}); continue; }
+    if (i<7) {
+      const dayIdx=(todayDow-i+7)%7;
+      const foods=Object.values(allDays[dayIdx]).flat();
+      const t=foods.reduce((s,f)=>({k:s.k+f.kcal,p:s.p+(f.prot||0),c:s.c+(f.carb||0),f:s.f+(f.fat||0)}),{k:0,p:0,c:0,f:0});
+      const burned=allActs[dayIdx].reduce((s,a)=>s+a.kcal,0);
+      if(t.k>0||burned>0) result.push({date:key,kcal:Math.round(t.k),prot:Math.round(t.p),carb:Math.round(t.c),fat:Math.round(t.f),burned});
+      else result.push({date:key,kcal:0,prot:0,carb:0,fat:0,burned:0});
+    } else {
+      result.push({date:key,kcal:0,prot:0,carb:0,fat:0,burned:0});
+    }
+  }
+  return result;
+}
+
+function renderAnalytics() {
+  const data = getAnalyticsData();
+  const active = data.filter(d=>d.kcal>0);
+  const avgKcal = active.length?Math.round(active.reduce((s,d)=>s+d.kcal,0)/active.length):0;
+  const avgProt = active.length?Math.round(active.reduce((s,d)=>s+(d.prot||0),0)/active.length):0;
+  const avgCarb = active.length?Math.round(active.reduce((s,d)=>s+(d.carb||0),0)/active.length):0;
+  const avgFat  = active.length?Math.round(active.reduce((s,d)=>s+(d.fat||0),0)/active.length):0;
+  const totalDef = data.reduce((s,d)=>s+(d.kcal>0?1450+(d.burned||0)-d.kcal:0),0);
+  const onTrack = active.filter(d=>d.kcal<=1500).length;
+  const totalBurned = data.reduce((s,d)=>s+(d.burned||0),0);
+
+  document.getElementById('analyticsCards').innerHTML = [
+    {lbl:'Сред. ккал/день',   val:avgKcal||'—',          sub:'норма 1450',           hi:avgKcal>0&&avgKcal<=1500},
+    {lbl:'Сред. белок/день',  val:avgProt?(avgProt+'г'):'—', sub:'норма 105г',        hi:avgProt>=100},
+    {lbl:'Суммарный дефицит', val:totalDef>0?'+'+totalDef:(totalDef||'—'), sub:'ккал', hi:totalDef>0},
+    {lbl:'Дней в норме',      val:onTrack+' из '+active.length, sub:'≤1500 ккал',    hi:active.length>0&&onTrack/active.length>=0.7},
+  ].map(c=>'<div class="analytics-card'+(c.hi?' highlight':'')+'"><div class="ac-lbl">'+c.lbl+'</div><div class="ac-val">'+c.val+'</div><div class="ac-sub">'+c.sub+'</div></div>').join('');
+
+  renderBarChart('calorieChart', data);
+  renderDeficitChart('deficitChart', data);
+
+  document.getElementById('macroAvg').innerHTML = [
+    {lbl:'Калории', val:avgKcal||'—', c:'#D4A843'},
+    {lbl:'Белки',   val:avgProt?(avgProt+'г'):'—', c:'#A8C5AC'},
+    {lbl:'Углеводы',val:avgCarb?(avgCarb+'г'):'—', c:'#F2994A'},
+    {lbl:'Жиры',    val:avgFat?(avgFat+'г'):'—',   c:'#EB5757'},
+  ].map(x=>'<div class="macro-avg-card"><div class="ma-lbl">'+x.lbl+'</div><div class="ma-val" style="color:'+x.c+'">'+x.val+'</div></div>').join('');
+
+  const actTypes={};
+  const daysN=analyticsPeriod==='week'?7:analyticsPeriod==='2week'?14:30;
+  for(let i=0;i<Math.min(daysN,7);i++){
+    const todayDow=(()=>{let d=new Date().getDay();return d===0?6:d-1;})();
+    const dayIdx=(todayDow-i+7)%7;
+    allActs[dayIdx].forEach(a=>{if(!actTypes[a.name])actTypes[a.name]={count:0,kcal:0};actTypes[a.name].count++;actTypes[a.name].kcal+=a.kcal;});
+  }
+  const actHtml=Object.entries(actTypes).map(([n,v])=>'<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed var(--border)"><span style="font-size:13px">'+n+'</span><span style="font-size:12px;color:var(--mid)">'+v.count+'x · −'+v.kcal+' ккал</span></div>').join('');
+  document.getElementById('activitySummary').innerHTML = actHtml||'<div style="color:var(--mid);font-size:13px;padding:8px 0">Нет активностей за период</div>';
+}
+
+function renderBarChart(id, data) {
+  const canvas=document.getElementById(id); if(!canvas) return;
+  const dpr=window.devicePixelRatio||1, W=canvas.offsetWidth||300, H=160;
+  canvas.width=W*dpr; canvas.height=H*dpr; canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+  const p={t:10,r:8,b:22,l:36}, cw=W-p.l-p.r, ch=H-p.t-p.b;
+  const maxV=Math.max(1800,...data.map(d=>d.kcal||0));
+  const barW=Math.max(4,cw/data.length*0.7), gap=cw/data.length;
+  const y1450=p.t+ch-(1450/maxV)*ch;
+  ctx.strokeStyle='#A8C5AC'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(p.l,y1450); ctx.lineTo(p.l+cw,y1450); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle='#7A9E7E'; ctx.font='9px sans-serif'; ctx.textAlign='right';
+  ctx.fillText('1450',p.l-2,y1450+3);
+  data.forEach((d,i)=>{
+    if(!d.kcal) return;
+    const x=p.l+i*gap+gap/2-barW/2, bh=(d.kcal/maxV)*ch, y=p.t+ch-bh;
+    ctx.fillStyle=d.kcal<=1500?'#A8C5AC':'#E8A882';
+    ctx.fillRect(x,y,barW,bh);
+    if(bh>16){ctx.fillStyle='#2C2C2C';ctx.font='8px sans-serif';ctx.textAlign='center';ctx.fillText(d.kcal,x+barW/2,y-2);}
+  });
+  ctx.fillStyle='#B0B0B0'; ctx.font='8px sans-serif'; ctx.textAlign='center';
+  const step=Math.max(1,Math.floor(data.length/6));
+  data.forEach((d,i)=>{ if(i%step===0||i===data.length-1) ctx.fillText(formatDateRu(d.date),p.l+i*gap+gap/2,H-5); });
+}
+
+function renderDeficitChart(id, data) {
+  const canvas=document.getElementById(id); if(!canvas) return;
+  const dpr=window.devicePixelRatio||1, W=canvas.offsetWidth||300, H=130;
+  canvas.width=W*dpr; canvas.height=H*dpr; canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+  const defs=data.map(d=>d.kcal>0?1450+(d.burned||0)-d.kcal:null);
+  const maxA=Math.max(400,...defs.filter(v=>v!==null).map(v=>Math.abs(v)));
+  const p={t:8,r:8,b:22,l:36}, cw=W-p.l-p.r, ch=H-p.t-p.b, midY=p.t+ch/2;
+  const barW=Math.max(4,cw/data.length*0.7), gap=cw/data.length;
+  ctx.strokeStyle='#E8E0D5'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(p.l,midY); ctx.lineTo(p.l+cw,midY); ctx.stroke();
+  ctx.fillStyle='#B0B0B0'; ctx.font='9px sans-serif'; ctx.textAlign='right'; ctx.fillText('0',p.l-3,midY+3);
+  defs.forEach((def,i)=>{
+    if(def===null) return;
+    const x=p.l+i*gap+gap/2-barW/2, bh=(Math.abs(def)/maxA)*(ch/2);
+    ctx.fillStyle=def>=0?'#6FCF97':'#EB5757';
+    if(def>=0) ctx.fillRect(x,midY-bh,barW,bh); else ctx.fillRect(x,midY,barW,bh);
+    if(bh>12){ctx.fillStyle='#2C2C2C';ctx.font='8px sans-serif';ctx.textAlign='center';ctx.fillText(Math.abs(def),x+barW/2,def>=0?midY-bh-2:midY+bh+9);}
+  });
+  ctx.fillStyle='#B0B0B0'; ctx.font='8px sans-serif'; ctx.textAlign='center';
+  const step=Math.max(1,Math.floor(data.length/6));
+  data.forEach((d,i)=>{ if(defs[i]!==null&&(i%step===0||i===data.length-1)) ctx.fillText(formatDateRu(d.date),p.l+i*gap+gap/2,H-5); });
+}
+
 // ── START ─────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
-  initAuth();
+  // Ensure setupScreen is visible until key is found
+  document.getElementById('setupScreen').style.display = 'flex';
+  loadKey();
 });
 </script>
 </body>
