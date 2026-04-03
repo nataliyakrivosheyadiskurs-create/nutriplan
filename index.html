@@ -824,14 +824,29 @@ function goScreen(name) {
 }
 
 // ── TABS ──────────────────────────────────────
+function getWeekDates() {
+  const today = new Date();
+  const todayIdx = (today.getDay() + 6) % 7; // 0=Пн
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - todayIdx);
+  return Array.from({length:7}, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d;
+  });
+}
+
 function renderTabs() {
   const c = document.getElementById('dayTabs'); c.innerHTML = '';
   const todayIdx = (() => { let d = new Date().getDay(); return d === 0 ? 6 : d - 1; })();
+  const weekDates = getWeekDates();
   DAYS.forEach((day, i) => {
     const kcal = Object.values(allDays[i]).flat().reduce((s,f) => s + f.kcal, 0);
+    const d = weekDates[i];
+    const dateStr = String(d.getDate()).padStart(2,'0') + '.' + String(d.getMonth()+1).padStart(2,'0');
     const btn = document.createElement('button');
     btn.className = 'dtab' + (i===activeDay?' on':'') + (i===todayIdx?' today':'') + (i===4?' fri':'');
-    btn.innerHTML = day + (i===4?' 🎉':'') + '<br><small>' + (kcal > 0 ? kcal+'кк' : '—') + '</small>';
+    btn.innerHTML = day + ' ' + dateStr + (i===4?' 🎉':'') + '<br><small>' + (kcal > 0 ? kcal+'кк' : '—') + '</small>';
     btn.onclick = () => { activeDay = i; renderTabs(); renderMeals(); renderActivities(); };
     c.appendChild(btn);
   });
@@ -1572,6 +1587,9 @@ function renderAnalytics() {
     </div>
   </div>`;
 
+  // Monthly calendar
+  html += renderCalendar(data);
+
   // Weight chart if body data exists
   const weightData = bodyLog.filter(r => r.weight).slice(-20);
   if (weightData.length >= 2) {
@@ -1631,6 +1649,92 @@ function archiveCurrentWeek() {
     if (eaten > 0 || burned > 0) histMap[dateStr] = { date: dateStr, eaten, burned };
   });
   localStorage.setItem('np_history', JSON.stringify(Object.values(histMap)));
+}
+
+
+// ── CALENDAR ──────────────────────────────────
+function renderCalendar(analyticsData) {
+  const dataMap = {};
+  analyticsData.forEach(r => { dataMap[r.date] = r; });
+
+  // Also pull history from localStorage for all-time data
+  const history = JSON.parse(localStorage.getItem('np_history') || '[]');
+  history.forEach(r => { if (!dataMap[r.date]) dataMap[r.date] = r; });
+
+  const today = new Date();
+  // Show current month + previous month
+  const months = [];
+  for (let m = 1; m >= 0; m--) {
+    const d = new Date(today.getFullYear(), today.getMonth() - m, 1);
+    months.push({ year: d.getFullYear(), month: d.getMonth() });
+  }
+
+  const MONTH_NAMES = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+  const DAY_NAMES = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+  const limit = 1450;
+
+  let html = '<div style="background:white;border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px">';
+  html += '<div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:14px">📅 Календарь питания</div>';
+
+  months.forEach(({ year, month }) => {
+    html += '<div style="margin-bottom:20px">';
+    html += '<div style="font-size:12px;font-weight:600;color:var(--mid);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">' + MONTH_NAMES[month] + ' ' + year + '</div>';
+
+    // Day headers
+    html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">';
+    DAY_NAMES.forEach(d => {
+      html += '<div style="text-align:center;font-size:9px;color:var(--light);font-weight:500">' + d + '</div>';
+    });
+    html += '</div>';
+
+    // Days grid
+    const firstDay = new Date(year, month, 1);
+    const lastDay  = new Date(year, month + 1, 0);
+    const startDow = (firstDay.getDay() + 6) % 7; // 0=Пн
+    const totalDays = lastDay.getDate();
+
+    html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">';
+
+    // Empty cells before first day
+    for (let e = 0; e < startDow; e++) {
+      html += '<div></div>';
+    }
+
+    for (let day = 1; day <= totalDays; day++) {
+      const dateStr = year + '-' + String(month+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+      const record  = dataMap[dateStr];
+      const isToday = dateStr === today.toISOString().slice(0,10);
+      const isFuture = new Date(dateStr) > today;
+
+      let dotHtml = '';
+      let bgColor = 'transparent';
+      let textColor = isFuture ? 'var(--light)' : 'var(--ink)';
+      let border = isToday ? '2px solid var(--sage)' : '2px solid transparent';
+
+      if (record && (record.eaten > 0)) {
+        const inDeficit = record.eaten <= (limit + (record.burned || 0));
+        const dotColor  = inDeficit ? '#6FCF97' : '#EB5757';
+        dotHtml = '<div style="width:6px;height:6px;border-radius:50%;background:' + dotColor + ';margin:0 auto;margin-top:1px"></div>';
+      }
+
+      html += '<div style="text-align:center;padding:4px 2px;border-radius:8px;border:' + border + '">';
+      html += '<div style="font-size:11px;color:' + textColor + ';line-height:1.2">' + day + '</div>';
+      html += dotHtml || '<div style="height:7px"></div>';
+      html += '</div>';
+    }
+
+    html += '</div></div>';
+  });
+
+  // Legend
+  html += '<div style="display:flex;gap:14px;margin-top:4px;font-size:11px;color:var(--mid)">';
+  html += '<span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#6FCF97;margin-right:4px;vertical-align:middle"></span>В норме</span>';
+  html += '<span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#EB5757;margin-right:4px;vertical-align:middle"></span>Перебор</span>';
+  html += '<span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:transparent;border:1px solid var(--mid);margin-right:4px;vertical-align:middle"></span>Нет данных</span>';
+  html += '</div>';
+
+  html += '</div>';
+  return html;
 }
 
 // ── START ─────────────────────────────────────
