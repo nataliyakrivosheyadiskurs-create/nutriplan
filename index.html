@@ -671,29 +671,28 @@ async function loadStateFromCloud() {
     await saveAllToCloud();
     return;
   }
-  allDays  = data.np_days    || blankDays();
+  dayData  = (data.np_days && typeof data.np_days === 'object' && !Array.isArray(data.np_days)) ? data.np_days : {};
+  actData  = (data.np_acts && typeof data.np_acts === 'object' && !Array.isArray(data.np_acts)) ? data.np_acts : {};
   customDB = data.np_cdb     || {};
-  allActs  = data.np_acts    || blankActs();
   recipes  = data.np_recipes || {};
   bodyLog  = data.np_body    || [];
-  localStorage.setItem('np_days',    JSON.stringify(allDays));
+  localStorage.setItem('np_daydata', JSON.stringify(dayData));
+  localStorage.setItem('np_actdata', JSON.stringify(actData));
   localStorage.setItem('np_cdb',     JSON.stringify(customDB));
-  localStorage.setItem('np_acts',    JSON.stringify(allActs));
   localStorage.setItem('np_recipes', JSON.stringify(recipes));
   localStorage.setItem('np_body',    JSON.stringify(bodyLog));
-  if (data.np_history) localStorage.setItem('np_history', JSON.stringify(data.np_history));
 }
 
 async function saveAllToCloud() {
   if (!currentUser) return;
   await sb.from('nutriplan_data').upsert({
     user_id:    currentUser.id,
-    np_days:    allDays,
+    np_days:    dayData,
     np_cdb:     customDB,
-    np_acts:    allActs,
+    np_acts:    actData,
     np_recipes: recipes,
     np_body:    bodyLog,
-    np_history: JSON.parse(localStorage.getItem('np_history') || '[]')
+    np_history: null
   }, { onConflict: 'user_id' });
 }
 
@@ -735,23 +734,37 @@ const EMOJIS = ['🍗','🥩','🐟','🥦','🥕','🍚','🫘','🍝','🥔','
 
 // ── STATE ─────────────────────────────────────
 let apiKey = '';
-let activeDay = (() => { let d = new Date().getDay(); return d === 0 ? 6 : d - 1; })();
-let allDays, customDB, allActs, recipes, bodyLog = [], chatHistory = [], pendingFood = null, twixChoice = null;
+// activeDate: 'YYYY-MM-DD' string, always the currently viewed date
+let activeDate = todayStr();
+let dayData = {};   // {'2025-04-04': {breakfast:[],lunch:[],snack:[],dinner:[]}, ...}
+let actData = {};   // {'2025-04-04': [{name,kcal,...}], ...}
+let customDB, recipes, bodyLog = [], chatHistory = [], pendingFood = null, twixChoice = null;
 let editingProdKey = null, editingRecipeKey = null, rfIngredients = [], dbTabFilter = 'all';
 let pendingNFMeal = null, pendingActPreset = null, pendingRecipeKey = null, deferredPrompt = null;
 
+function todayStr() {
+  return new Date().toISOString().slice(0,10);
+}
+function blankDay() { return {breakfast:[], lunch:[], snack:[], dinner:[]}; }
+function getDay(date) {
+  if (!dayData[date]) dayData[date] = blankDay();
+  return dayData[date];
+}
+function getActs(date) {
+  if (!actData[date]) actData[date] = [];
+  return actData[date];
+}
+
 function loadState() {
-  try { const d = JSON.parse(localStorage.getItem('np_days')); allDays = (Array.isArray(d) && d.length === 7) ? d : blankDays(); } catch { allDays = blankDays(); }
+  try { const d = JSON.parse(localStorage.getItem('np_daydata')); dayData = (d && typeof d === 'object') ? d : {}; } catch { dayData = {}; }
+  try { const d = JSON.parse(localStorage.getItem('np_actdata')); actData = (d && typeof d === 'object') ? d : {}; } catch { actData = {}; }
   try { const d = JSON.parse(localStorage.getItem('np_cdb')); customDB = (d && typeof d === 'object') ? d : {}; } catch { customDB = {}; }
-  try { const d = JSON.parse(localStorage.getItem('np_acts')); allActs = (Array.isArray(d) && d.length === 7) ? d : blankActs(); } catch { allActs = blankActs(); }
   try { const d = JSON.parse(localStorage.getItem('np_recipes')); recipes = (d && typeof d === 'object') ? d : {}; } catch { recipes = {}; }
   loadBodyLog();
 }
-function blankDays() { return Array.from({length:7}, () => ({breakfast:[],lunch:[],snack:[],dinner:[]})); }
-function blankActs() { return Array.from({length:7}, () => []); }
-function saveDays() { localStorage.setItem('np_days', JSON.stringify(allDays)); saveAllToCloud(); }
-function saveCDB() { localStorage.setItem('np_cdb', JSON.stringify(customDB)); saveAllToCloud(); }
-function saveActs() { localStorage.setItem('np_acts', JSON.stringify(allActs)); saveAllToCloud(); }
+function saveDays() { localStorage.setItem('np_daydata', JSON.stringify(dayData)); saveAllToCloud(); }
+function saveCDB()  { localStorage.setItem('np_cdb', JSON.stringify(customDB)); saveAllToCloud(); }
+function saveActs() { localStorage.setItem('np_actdata', JSON.stringify(actData)); saveAllToCloud(); }
 function saveRecipes() { localStorage.setItem('np_recipes', JSON.stringify(recipes)); saveAllToCloud(); }
 
 function allKeys() { return [...Object.keys(DB), ...Object.keys(customDB)]; }
@@ -786,7 +799,7 @@ function resetAll() { if (confirm('Сбросить все данные?')) { lo
 function init() {
   try {
     loadState();
-    archiveCurrentWeek();
+    activeDate = todayStr();
     // Force diary screen visible
     document.getElementById('screenDiary').classList.add('on');
     document.getElementById('bnav-diary').classList.add('on');
@@ -838,16 +851,18 @@ function getWeekDates() {
 
 function renderTabs() {
   const c = document.getElementById('dayTabs'); c.innerHTML = '';
-  const todayIdx = (() => { let d = new Date().getDay(); return d === 0 ? 6 : d - 1; })();
+  const todayISO = todayStr();
   const weekDates = getWeekDates();
   DAYS.forEach((day, i) => {
-    const kcal = Object.values(allDays[i]).flat().reduce((s,f) => s + f.kcal, 0);
     const d = weekDates[i];
+    const iso = d.toISOString().slice(0,10);
+    const kcal = Object.values(getDay(iso)).flat().reduce((s,f) => s + f.kcal, 0);
     const dateStr = String(d.getDate()).padStart(2,'0') + '.' + String(d.getMonth()+1).padStart(2,'0');
+    const isFri = d.getDay() === 5;
     const btn = document.createElement('button');
-    btn.className = 'dtab' + (i===activeDay?' on':'') + (i===todayIdx?' today':'') + (i===4?' fri':'');
-    btn.innerHTML = day + ' ' + dateStr + (i===4?' 🎉':'') + '<br><small>' + (kcal > 0 ? kcal+'кк' : '—') + '</small>';
-    btn.onclick = () => { activeDay = i; renderTabs(); renderMeals(); renderActivities(); };
+    btn.className = 'dtab' + (iso===activeDate?' on':'') + (iso===todayISO?' today':'') + (isFri?' fri':'');
+    btn.innerHTML = day + ' ' + dateStr + (isFri?' 🎉':'') + '<br><small>' + (kcal > 0 ? kcal+'кк' : '—') + '</small>';
+    btn.onclick = () => { activeDate = iso; renderTabs(); renderMeals(); renderActivities(); };
     c.appendChild(btn);
   });
 }
@@ -855,7 +870,7 @@ function renderTabs() {
 // ── MEALS ─────────────────────────────────────
 function renderMeals() {
   const g = document.getElementById('meals'); g.innerHTML = '';
-  const day = allDays[activeDay];
+  const day = getDay(activeDate);
   MEALS_CFG.forEach(m => {
     const foods = day[m.id];
     const mk = foods.reduce((s,f) => s + f.kcal, 0);
@@ -877,7 +892,7 @@ function renderMeals() {
 }
 
 function updateSummary() {
-  const foods = Object.values(allDays[activeDay]).flat();
+  const foods = Object.values(getDay(activeDate)).flat();
   const t = foods.reduce((s,f) => ({k:s.k+f.kcal,p:s.p+(f.prot||0),c:s.c+(f.carb||0),f:s.f+(f.fat||0)}), {k:0,p:0,c:0,f:0});
   document.getElementById('tKcal').innerHTML = Math.round(t.k) + ' <span>/ 1450</span>';
   document.getElementById('tProt').innerHTML = Math.round(t.p) + ' <span>г/105</span>';
@@ -891,8 +906,8 @@ function updateSummary() {
 }
 
 function updateDeficit() {
-  const eaten = Object.values(allDays[activeDay]).flat().reduce((s,f) => s + f.kcal, 0);
-  const burned = allActs[activeDay].reduce((s,a) => s + a.kcal, 0);
+  const eaten = Object.values(getDay(activeDate)).flat().reduce((s,f) => s + f.kcal, 0);
+  const burned = getActs(activeDate).reduce((s,a) => s + a.kcal, 0);
   const deficit = 1450 + burned - eaten;
   document.getElementById('defEaten').textContent = eaten;
   document.getElementById('defBurned').textContent = burned;
@@ -920,10 +935,10 @@ function addFromInput(mid) {
 
 function addFood(mid, name, w) {
   const d = getFood(name); if (!d) return;
-  allDays[activeDay][mid].push({name, w, kcal:Math.round(d.k*w/100), prot:Math.round(d.p*w/100*10)/10, carb:Math.round(d.c*w/100*10)/10, fat:Math.round(d.f*w/100*10)/10});
+  getDay(activeDate)[mid].push({name, w, kcal:Math.round(d.k*w/100), prot:Math.round(d.p*w/100*10)/10, carb:Math.round(d.c*w/100*10)/10, fat:Math.round(d.f*w/100*10)/10});
   renderMeals();
 }
-function delFood(mid, idx) { allDays[activeDay][mid].splice(idx, 1); renderMeals(); }
+function delFood(mid, idx) { getDay(activeDate)[mid].splice(idx, 1); renderMeals(); }
 
 // ── QUICK FOODS ───────────────────────────────
 function renderQuickFoods() {
@@ -1031,7 +1046,7 @@ const ACT_PRESETS = [
   {name:'С часов ⌚',emoji:'⌚',ask:'kcal',rate:0}
 ];
 function renderActivities() {
-  const acts = allActs[activeDay];
+  const acts = getActs(activeDate);
   const total = acts.reduce((s,a) => s + a.kcal, 0);
   document.getElementById('actList').innerHTML = acts.map((a,i) =>
     '<div class="act-item"><div class="act-emoji">' + a.emoji + '</div><div class="act-info"><div class="act-name">' + a.name + '</div><div class="act-detail">' + (a.detail||'') + '</div></div><div class="act-kcal-badge">−' + a.kcal + ' ккал</div><button class="act-del" onclick="delAct(' + i + ')">×</button></div>'
@@ -1043,12 +1058,12 @@ function renderActivities() {
   ).join('');
   updateDeficit();
 }
-function delAct(i) { allActs[activeDay].splice(i, 1); saveActs(); renderActivities(); }
+function delAct(i) { getActs(activeDate).splice(i, 1); saveActs(); renderActivities(); }
 function addActManual() {
   const n = document.getElementById('actNameInp').value.trim();
   const k = parseInt(document.getElementById('actKcalInp').value) || 0;
   if (!n || !k) return;
-  allActs[activeDay].push({name:n, emoji:'🏋️', kcal:k, detail:''});
+  getActs(activeDate).push({name:n, emoji:'🏋️', kcal:k, detail:''});
   saveActs(); document.getElementById('actNameInp').value = ''; document.getElementById('actKcalInp').value = '';
   renderActivities();
 }
@@ -1080,7 +1095,7 @@ function confirmAct() {
     kcal = parseInt(document.getElementById('actKcalDirectInp')?.value) || 0; if (!kcal) return;
     detail = 'с умных часов';
   }
-  allActs[activeDay].push({name:p.name, emoji:p.emoji, kcal, detail});
+  getActs(activeDate).push({name:p.name, emoji:p.emoji, kcal, detail});
   saveActs(); closeActSheet(); renderActivities();
 }
 function closeActSheet() { document.getElementById('actSheet').classList.remove('on'); pendingActPreset = null; }
@@ -1269,7 +1284,7 @@ function addRecipeToMeal(mid, key) {
   const r = recipes[key]; if (!r) return;
   r.ingredients.forEach(ing => {
     const d = getFood(ing.name); if (!d) return;
-    allDays[activeDay][mid].push({name:ing.name, w:ing.w, kcal:Math.round(d.k*ing.w/100), prot:Math.round(d.p*ing.w/100*10)/10, carb:Math.round(d.c*ing.w/100*10)/10, fat:Math.round(d.f*ing.w/100*10)/10});
+    getDay(activeDate)[mid].push({name:ing.name, w:ing.w, kcal:Math.round(d.k*ing.w/100), prot:Math.round(d.p*ing.w/100*10)/10, carb:Math.round(d.c*ing.w/100*10)/10, fat:Math.round(d.f*ing.w/100*10)/10});
   });
   renderMeals();
 }
@@ -1279,7 +1294,7 @@ function addRecipeWithServing(mid, key, servingW) {
   if (!r.yield || r.yield <= 0) { addRecipeToMeal(mid, key); return; }
   const ratio = servingW / r.yield;
   const t = recipeTotal(r);
-  allDays[activeDay][mid].push({
+  getDay(activeDate)[mid].push({
     name: r.name + ' (' + servingW + 'г)',
     w: servingW,
     kcal: Math.round(t.k * ratio),
@@ -1294,12 +1309,12 @@ function addRecipeWithServing(mid, key, servingW) {
 async function getSuggestions(mid) {
   const btn = document.getElementById('sb-' + mid), panel = document.getElementById('sp-' + mid);
   const m = MEALS_CFG.find(x => x.id === mid);
-  const mKcal = allDays[activeDay][mid].reduce((s,f) => s+f.kcal, 0);
-  const total = Object.values(allDays[activeDay]).flat().reduce((s,f) => s+f.kcal, 0);
+  const mKcal = getDay(activeDate)[mid].reduce((s,f) => s+f.kcal, 0);
+  const total = Object.values(getDay(activeDate)).flat().reduce((s,f) => s+f.kcal, 0);
   btn.disabled = true; btn.textContent = '⏳ Подбираю...';
   panel.innerHTML = ''; panel.classList.remove('on');
   try {
-    const r = await callAI([{role:'user',content:'Предложи 3 варианта для: ' + m.name + '. Целевые ккал: ' + m.tKcal + ', текущий остаток: ' + Math.max(50,m.tKcal-mKcal) + '. Осталось на день: ' + (1450-total) + ' ккал.' + (activeDay===4?'\nПятница — можно немного побаловать.':'') + '\nНЕ предлагай: яйца, молочку (кроме твёрдых сыров), белую рыбу, субпродукты, овсянку.\nJSON массив: [{"title":"...","kcal":0,"protein":0,"ingredients":"...","tip":"..."}]'}], 'Ты нутрициолог. ' + PROFILE + '\nОтвечай ТОЛЬКО в JSON без markdown.');
+    const r = await callAI([{role:'user',content:'Предложи 3 варианта для: ' + m.name + '. Целевые ккал: ' + m.tKcal + ', текущий остаток: ' + Math.max(50,m.tKcal-mKcal) + '. Осталось на день: ' + (1450-total) + ' ккал.' + (new Date(activeDate).getDay()===5?'\nПятница — можно немного побаловать.':'') + '\nНЕ предлагай: яйца, молочку (кроме твёрдых сыров), белую рыбу, субпродукты, овсянку.\nJSON массив: [{"title":"...","kcal":0,"protein":0,"ingredients":"...","tip":"..."}]'}], 'Ты нутрициолог. ' + PROFILE + '\nОтвечай ТОЛЬКО в JSON без markdown.');
     const sugs = JSON.parse(r.replace(/```json|```/g,'').trim());
     panel.innerHTML = '<h4>✨ Варианты для ' + m.name.toLowerCase() + 'а</h4>' + sugs.map(s =>
       '<div class="sug-opt" onclick=\'applySug("' + mid + '",' + JSON.stringify(s) + ')\'><div class="sot">' + s.title + '</div><div class="smeta"><span>🔥 ' + s.kcal + ' ккал</span><span>💪 ' + s.protein + 'г белка</span></div><div class="sdesc">' + s.ingredients + '</div><div class="stip">💡 ' + s.tip + '</div></div>'
@@ -1310,7 +1325,7 @@ async function getSuggestions(mid) {
 }
 function applySug(mid, s) {
   if (typeof s === 'string') try { s = JSON.parse(s); } catch { return; }
-  allDays[activeDay][mid].push({name:s.title, w:0, kcal:s.kcal, prot:s.protein, carb:0, fat:0});
+  getDay(activeDate)[mid].push({name:s.title, w:0, kcal:s.kcal, prot:s.protein, carb:0, fat:0});
   document.getElementById('sp-' + mid).classList.remove('on');
   renderMeals();
 }
@@ -1336,10 +1351,10 @@ async function sendChat() {
   const c = document.getElementById('msgs'); const el = document.createElement('div'); el.className='msg usr'; el.textContent=text; c.appendChild(el); c.scrollTop=c.scrollHeight;
   chatHistory.push({role:'user', content:text});
   showTyping();
-  const day = allDays[activeDay];
+  const day = getDay(activeDate);
   const rows = MEALS_CFG.map(m => { const f=day[m.id]; if(!f.length) return null; return m.name+': '+f.map(x=>x.name).join(', ')+' ('+f.reduce((s,x)=>s+x.kcal,0)+'кк)'; }).filter(Boolean);
   const total = Object.values(day).flat().reduce((s,f)=>s+f.kcal,0);
-  const ctx = DAYS[activeDay] + (activeDay===4?' (пятница)':'') + '\n' + (rows.length ? rows.join('\n')+'\nИтого: '+total+'/1450кк' : 'Рацион пуст');
+  const ctx = activeDate + (new Date(activeDate).getDay()===5?' (пятница)':'') + '\n' + (rows.length ? rows.join('\n')+'\nИтого: '+total+'/1450кк' : 'Рацион пуст');
   const sys = 'Ты дружелюбный нутрициолог для Ники.\n' + PROFILE + '\n' + ctx + '\nОтвечай по-русски, кратко, с эмодзи. НЕ предлагай яйца, молочку, белую рыбу, овсянку.';
   try { const ans = await callAI(chatHistory.slice(-8), sys); hideTyping(); botMsg(ans); }
   catch(e) { hideTyping(); botMsg('Что-то пошло не так 😔 Проверь API ключ в настройках.'); }
@@ -1480,24 +1495,13 @@ function setAtab(tab, btn) {
 }
 
 function getAnalyticsData(tab) {
-  // Build history from allDays (current week) + np_history (past weeks)
-  const history = JSON.parse(localStorage.getItem('np_history') || '[]');
-  const today = new Date();
-  // Current week days with dates
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - ((today.getDay()+6)%7)); // Monday
-  const currentWeekData = allDays.map((day, i) => {
-    const d = new Date(weekStart);
-    d.setDate(weekStart.getDate() + i);
-    const dateStr = d.toISOString().slice(0,10);
-    const eaten = Object.values(day).flat().reduce((s,f) => s + (f.kcal||0), 0);
-    const burned = (allActs[i]||[]).reduce((s,a) => s + (a.kcal||0), 0);
-    return { date: dateStr, eaten, burned };
-  });
-  // Merge with history
+  // Build entries directly from dayData/actData (now date-keyed)
   const allData = {};
-  history.forEach(r => { allData[r.date] = r; });
-  currentWeekData.forEach(r => { if (r.eaten > 0 || r.burned > 0) allData[r.date] = r; });
+  Object.keys(dayData).forEach(date => {
+    const eaten  = Object.values(dayData[date]).flat().reduce((s,f) => s + (f.kcal||0), 0);
+    const burned = (actData[date] || []).reduce((s,a) => s + (a.kcal||0), 0);
+    if (eaten > 0 || burned > 0) allData[date] = { date, eaten, burned };
+  });
   let entries = Object.values(allData).sort((a,b) => a.date.localeCompare(b.date));
 
   const now = new Date();
@@ -1632,34 +1636,20 @@ function renderAnalytics() {
   el.innerHTML = html;
 }
 
-// Save current week to history when switching weeks
-function archiveCurrentWeek() {
-  const history = JSON.parse(localStorage.getItem('np_history') || '[]');
-  const histMap = {};
-  history.forEach(r => { histMap[r.date] = r; });
-  const today = new Date();
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - ((today.getDay()+6)%7));
-  allDays.forEach((day, i) => {
-    const d = new Date(weekStart);
-    d.setDate(weekStart.getDate() + i);
-    const dateStr = d.toISOString().slice(0,10);
-    const eaten  = Object.values(day).flat().reduce((s,f) => s + (f.kcal||0), 0);
-    const burned = (allActs[i]||[]).reduce((s,a) => s + (a.kcal||0), 0);
-    if (eaten > 0 || burned > 0) histMap[dateStr] = { date: dateStr, eaten, burned };
-  });
-  localStorage.setItem('np_history', JSON.stringify(Object.values(histMap)));
-}
+// No-op: dayData is now date-keyed, no archiving needed
+function archiveCurrentWeek() {}
 
 
 // ── CALENDAR ──────────────────────────────────
 function renderCalendar(analyticsData) {
   const dataMap = {};
+  // Build from dayData/actData directly
+  Object.keys(dayData).forEach(date => {
+    const eaten  = Object.values(dayData[date]).flat().reduce((s,f) => s + (f.kcal||0), 0);
+    const burned = (actData[date] || []).reduce((s,a) => s + (a.kcal||0), 0);
+    if (eaten > 0 || burned > 0) dataMap[date] = { date, eaten, burned };
+  });
   analyticsData.forEach(r => { dataMap[r.date] = r; });
-
-  // Also pull history from localStorage for all-time data
-  const history = JSON.parse(localStorage.getItem('np_history') || '[]');
-  history.forEach(r => { if (!dataMap[r.date]) dataMap[r.date] = r; });
 
   const today = new Date();
   // Show current month + previous month
